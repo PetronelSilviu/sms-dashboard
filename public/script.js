@@ -2,7 +2,7 @@
 
 // ==================  IMPORTANT: EDIT THIS LINE ==================
 // Replace with your public Render server URL
-const SERVER_URL = "https://your-dashboard-name.onrender.com";
+const SERVER_URL = "https://sms-dashboard-1igl.onrender.com";
 // ================================================================
 
 const socket = io(SERVER_URL);
