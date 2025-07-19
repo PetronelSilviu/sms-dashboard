@@ -5,7 +5,12 @@ const { Server } = require("socket.io");
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server);
+const io = new Server(server, {
+  cors: {
+    origin: "*", // This allows your web page to connect
+    methods: ["GET", "POST"]
+  }
+});
 
 // This is where we'll store messages.
 // In a real app, you would use a database.
