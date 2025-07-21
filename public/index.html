@@ -14,32 +14,37 @@
         .message-list { list-style-type: none; padding: 15px; height: 70vh; overflow-y: auto; }
         .message-item { background-color: #e9e9eb; padding: 10px; border-radius: 8px; margin-bottom: 10px; }
         .message-item .from { font-weight: bold; color: #333; }
-        .message-item .body { margin-top: 5px; color: #555; }
+        .message-item .body { margin-top: 5px; color: #555; white-space: pre-wrap; }
         .message-item .time { font-size: 0.75em; color: #888; text-align: right; margin-top: 5px;}
+        /* This is the new style for our MMS images */
+        .mms-image {
+            max-width: 100%;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
     </style>
 </head>
 <body>
 
     <header>
-        <h1>Live SMS Message Dashboard</h1>
+        <h1>Live SMS & MMS Dashboard</h1>
     </header>
     
     <main>
-        <div class="phone-column" id="phone-a-column">
+        <div class="phone-column" id="att-column">
             <h2>AT&T</h2>
-            <ul class="message-list" id="phone-a-messages">
-                </ul>
+            <ul class="message-list" id="att-messages">
+            </ul>
         </div>
 
-        <div class="phone-column" id="phone-b-column">
+        <div class="phone-column" id="verizon-column">
             <h2>Verizon</h2>
-            <ul class="message-list" id="phone-b-messages">
-                </ul>
+            <ul class="message-list" id="verizon-messages">
+            </ul>
         </div>
     </main>
     
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-    
     <script src="script.js"></script>
 
 </body>
