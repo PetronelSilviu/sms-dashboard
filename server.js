@@ -2,57 +2,126 @@
 const express = require('express');
 const http = require('http');
 const { Server } = require("socket.io");
+const sqlite3 = require('sqlite3').verbose();
+const multer = require('multer'); // For handling file uploads
+const cors = require('cors'); // For handling connections
+const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: "*", // This allows your web page to connect
+    origin: "*",
     methods: ["GET", "POST"]
   }
 });
 
-// This is where we'll store messages.
-// In a real app, you would use a database.
-const messagesByPhone = {};
-
-// This tells our server how to handle incoming JSON data
+// --- Middleware Setup ---
+app.use(cors()); // Use CORS for all routes
 app.use(express.json());
-
-// This tells our server to show the 'public' folder to the browser
+// This makes the 'public' folder (and our 'uploads' folder inside it) accessible to the web
 app.use(express.static('public'));
 
-// This is the API endpoint the Android app will send messages to
-app.post('/message', (req, res) => {
-  const { phoneId, from, body } = req.body;
-
-  if (!phoneId || !from || !body) {
-    return res.status(400).send({ status: 'error', message: 'Missing data' });
-  }
-
-  const newMessage = { from, body, timestamp: new Date() };
-
-  // If this is the first message from a phone, create an array for it
-  if (!messagesByPhone[phoneId]) {
-    messagesByPhone[phoneId] = [];
-  }
-  messagesByPhone[phoneId].push(newMessage);
-
-  console.log(`Received from ${phoneId}: ${body}`);
-
-  // This sends the message in real-time to the web page
-  io.emit('new_message', { phoneId, ...newMessage });
-
-  res.status(200).send({ status: 'success' });
+// --- Database Setup ---
+const db = new sqlite3.Database('./sms_database.db', (err) => {
+    if (err) {
+        console.error("Error opening database:", err.message);
+    } else {
+        console.log("Successfully connected to the database.");
+        // UPDATE the messages table to include an imageUrl column
+        db.run(`CREATE TABLE IF NOT EXISTS messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            phoneId TEXT NOT NULL,
+            sender TEXT NOT NULL,
+            body TEXT,
+            imageUrl TEXT,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`);
+    }
 });
 
-// This section handles web page connections
+// --- File Upload Configuration (Multer) ---
+const storage = multer.diskStorage({
+  destination: './public/uploads/',
+  filename: function (req, file, cb) {
+    // Create a unique filename: originalname-timestamp.extension
+    cb(null, file.fieldname + '-' + Date.now() + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({
+  storage: storage
+}).single('mmsImage'); // The Android app will send the image with the field name 'mmsImage'
+
+// --- API Endpoints ---
+
+// NEW: Endpoint for uploading an image
+app.post('/upload', (req, res) => {
+  upload(req, res, (err) => {
+    if (err) {
+      console.error("Error uploading file:", err);
+      res.status(500).json({ error: err });
+    } else {
+      console.log("File uploaded successfully:", req.file.filename);
+      // Send back the URL of the uploaded file
+      res.status(200).json({
+        imageUrl: `/uploads/${req.file.filename}`
+      });
+    }
+  });
+});
+
+// UPDATED: Endpoint for saving the message data
+app.post('/message', (req, res) => {
+  // Now accepts an optional imageUrl
+  const { phoneId, from, body, imageUrl } = req.body;
+
+  if (!phoneId || !from) {
+    return res.status(400).send('Missing required data');
+  }
+
+  const sql = `INSERT INTO messages (phoneId, sender, body, imageUrl) VALUES (?, ?, ?, ?)`;
+  db.run(sql, [phoneId, from, body || '', imageUrl || null], function(err) {
+      if (err) {
+          console.error("Error saving message to database:", err.message);
+          return res.status(500).send('Error saving message');
+      }
+      
+      console.log(`Saved message from ${phoneId}`);
+      
+      const newMessage = {
+          phoneId,
+          from,
+          body: body || '',
+          imageUrl: imageUrl || null,
+          timestamp: new Date().toISOString()
+      };
+      io.emit('new_message', newMessage);
+
+      res.status(200).send('Message received and saved');
+  });
+});
+
+
+// UPDATED: Fetch all messages for new web clients
 io.on('connection', (socket) => {
   console.log('A web client connected.');
-  // When a new browser connects, send it all the messages we have so far
-  socket.emit('all_messages', messagesByPhone);
+  const sql = `SELECT phoneId, sender AS "from", body, imageUrl, timestamp FROM messages ORDER BY timestamp ASC`;
+  db.all(sql, [], (err, rows) => {
+      if (err) {
+          console.error("Error fetching messages:", err.message);
+          return;
+      }
+      const messagesByPhone = {};
+      rows.forEach(msg => {
+          if (!messagesByPhone[msg.phoneId]) {
+              messagesByPhone[msg.phoneId] = [];
+          }
+          messagesByPhone[msg.phoneId].push(msg);
+      });
+      socket.emit('all_messages', messagesByPhone);
+  });
 });
 
-// This makes the server work correctly on Render
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
