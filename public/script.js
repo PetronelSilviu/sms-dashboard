@@ -1,24 +1,22 @@
-// script.js
-
-// ==================  IMPORTANT: EDIT THIS LINE ==================
-// Replace with your public Render server URL
-const SERVER_URL = "https://sms-dashboard-1igl.onrender.com";
-// ================================================================
-
+// New, updated script.js
+const SERVER_URL = "https://sms-dashboard-1igl.onrender.com"; // Make sure this is your correct URL
 const socket = io(SERVER_URL);
 
-// Get the lists where we will display messages
-const phoneAMessages = document.getElementById('phone-a-messages');
-const phoneBMessages = document.getElementById('phone-b-messages');
+// 1. Get the HTML lists using their NEW IDs
+const attMessages = document.getElementById('att-messages');
+const verizonMessages = document.getElementById('verizon-messages');
 
-// A function to create and add a message to the UI
+// This function creates and adds a message item to the correct list
 function addMessageToList(phoneId, message) {
-    const list = phoneId === 'PhoneA' ? phoneAMessages : phoneBMessages;
+    // 2. Decide which list to add the message to based on the NEW phoneId
+    const list = phoneId === 'AT&T' ? attMessages : verizonMessages;
     
+    // Make sure the list was found before trying to add to it
+    if (!list) return;
+
     const item = document.createElement('li');
     item.className = 'message-item';
     
-    // Format the timestamp to be readable
     const time = new Date(message.timestamp).toLocaleTimeString('en-US');
 
     item.innerHTML = `
@@ -27,32 +25,28 @@ function addMessageToList(phoneId, message) {
         <div class="time">${time}</div>
     `;
     
-    // Add the new message to the top of the list
     list.prepend(item);
 }
 
 
-// Listen for the 'all_messages' event from the server
+// When first connecting, load all historical messages
 socket.on('all_messages', (messagesByPhone) => {
     // Clear any existing messages
-    phoneAMessages.innerHTML = '';
-    phoneBMessages.innerHTML = '';
+    if(attMessages) attMessages.innerHTML = '';
+    if(verizonMessages) verizonMessages.innerHTML = '';
     
-    // Populate messages for Phone A
-    if (messagesByPhone.PhoneA) {
-        messagesByPhone.PhoneA.forEach(msg => addMessageToList('PhoneA', msg));
+    // 3. Populate messages using the NEW names
+    if (messagesByPhone.AT_T) { // Note: Server might send AT&T as AT_T
+        messagesByPhone.AT_T.forEach(msg => addMessageToList('AT&T', msg));
     }
-
-    // Populate messages for Phone B
-    if (messagesByPhone.PhoneB) {
-        messagesByPhone.PhoneB.forEach(msg => addMessageToList('PhoneB', msg));
+    if (messagesByPhone.Verizon) {
+        messagesByPhone.Verizon.forEach(msg => addMessageToList('Verizon', msg));
     }
 });
 
 
-// Listen for the 'new_message' event from the server
+// When a new message arrives in real-time
 socket.on('new_message', (message) => {
-    // Add the new message in real-time
     addMessageToList(message.phoneId, message);
 });
 
