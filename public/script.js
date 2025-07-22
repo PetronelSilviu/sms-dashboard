@@ -1,31 +1,32 @@
-// New, updated script.js with image support
+// Final script.js
 const SERVER_URL = "https://sms-dashboard-1igl.onrender.com"; // Make sure this is your correct URL
 const socket = io(SERVER_URL);
 
+// Get the HTML lists using their correct IDs
 const attMessages = document.getElementById('att-messages');
 const verizonMessages = document.getElementById('verizon-messages');
 
+// This function creates and adds a message item to the correct list
 function addMessageToList(phoneId, message) {
+    // Decide which list to add the message to based on the phoneId
     const list = phoneId === 'AT&T' ? attMessages : verizonMessages;
     
-    if (!list) return;
+    if (!list) return; // Exit if the list element isn't found
 
     const item = document.createElement('li');
     item.className = 'message-item';
     
     const time = new Date(message.timestamp).toLocaleTimeString('en-US');
 
-    // Create the basic HTML for the message (from, body, time)
+    // Create the basic HTML for the message
     let messageHTML = `
         <div class="from">From: ${message.from}</div>
-        <div class="body">${message.body}</div>
+        <div class="body">${message.body || ''}</div>
         <div class="time">${time}</div>
     `;
 
-    // **NEW:** Check if there is an image URL.
+    // Check if there is an image URL and add the image tag
     if (message.imageUrl) {
-        // If there is an image, add an <img> tag to the HTML.
-        // The src will be the full URL to the image on our server.
         messageHTML += `<img src="${SERVER_URL}${message.imageUrl}" class="mms-image" alt="MMS Image">`;
     }
 
@@ -38,11 +39,12 @@ socket.on('all_messages', (messagesByPhone) => {
     if(attMessages) attMessages.innerHTML = '';
     if(verizonMessages) verizonMessages.innerHTML = '';
     
-    if (messagesByPhone.AT&T) {
-        messagesByPhone.AT&T.forEach(msg => addMessageToList('AT&T', msg));
+    // Use bracket notation ['AT&T'] which is safer for keys with special characters
+    if (messagesByPhone['AT&T']) {
+        messagesByPhone['AT&T'].forEach(msg => addMessageToList('AT&T', msg));
     }
-    if (messagesByPhone.Verizon) {
-        messagesByPhone.Verizon.forEach(msg => addMessageToList('Verizon', msg));
+    if (messagesByPhone['Verizon']) {
+        messagesByPhone['Verizon'].forEach(msg => addMessageToList('Verizon', msg));
     }
 });
 
