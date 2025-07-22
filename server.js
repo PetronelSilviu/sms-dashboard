@@ -1,126 +1,162 @@
-// server.js
+// server.js - Final version with Firebase integration
 const express = require('express');
 const http = require('http');
 const { Server } = require("socket.io");
-const sqlite3 = require('sqlite3').verbose();
-const multer = require('multer'); // For handling file uploads
-const cors = require('cors'); // For handling connections
+const { Pool } = require('pg');
+const multer = require('multer');
+const cors = require('cors');
 const path = require('path');
+const admin = require('firebase-admin'); // Firebase Admin SDK
+
+// --- Firebase Initialization ---
+// The SDK will automatically find the credentials file we added on Render
+try {
+  admin.initializeApp({
+    credential: admin.credential.applicationDefault()
+  });
+  console.log("Firebase Admin SDK initialized successfully.");
+} catch (error) {
+  console.error("Firebase Admin SDK initialization error:", error);
+}
+
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: {
-    origin: "*",
-    methods: ["GET", "POST"]
-  }
+  cors: { origin: "*", methods: ["GET", "POST"] }
 });
 
 // --- Middleware Setup ---
-app.use(cors()); // Use CORS for all routes
+app.use(cors());
 app.use(express.json());
-// This makes the 'public' folder (and our 'uploads' folder inside it) accessible to the web
 app.use(express.static('public'));
 
 // --- Database Setup ---
-const db = new sqlite3.Database('./sms_database.db', (err) => {
-    if (err) {
-        console.error("Error opening database:", err.message);
-    } else {
-        console.log("Successfully connected to the database.");
-        // UPDATE the messages table to include an imageUrl column
-        db.run(`CREATE TABLE IF NOT EXISTS messages (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            phoneId TEXT NOT NULL,
-            sender TEXT NOT NULL,
-            body TEXT,
-            imageUrl TEXT,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-        )`);
-    }
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false }
 });
 
-// --- File Upload Configuration (Multer) ---
+// Create tables for messages and device tokens
+const createTablesQuery = `
+  CREATE TABLE IF NOT EXISTS messages (
+    id SERIAL PRIMARY KEY,
+    phoneId VARCHAR(50) NOT NULL,
+    sender VARCHAR(255) NOT NULL,
+    body TEXT,
+    imageUrl TEXT,
+    timestamp TIMESTAMPTZ DEFAULT NOW()
+  );
+  CREATE TABLE IF NOT EXISTS devices (
+    phoneId VARCHAR(50) PRIMARY KEY,
+    token TEXT NOT NULL
+  );
+`;
+pool.query(createTablesQuery)
+  .then(() => console.log("Tables are ready."))
+  .catch(err => console.error("Error creating tables:", err));
+
+// --- File Upload Configuration ---
 const storage = multer.diskStorage({
   destination: './public/uploads/',
-  filename: function (req, file, cb) {
-    // Create a unique filename: originalname-timestamp.extension
+  filename: (req, file, cb) => {
     cb(null, file.fieldname + '-' + Date.now() + path.extname(file.originalname));
   }
 });
-
-const upload = multer({
-  storage: storage
-}).single('mmsImage'); // The Android app will send the image with the field name 'mmsImage'
+const upload = multer({ storage: storage }).single('mmsImage');
 
 // --- API Endpoints ---
-
-// NEW: Endpoint for uploading an image
 app.post('/upload', (req, res) => {
   upload(req, res, (err) => {
-    if (err) {
-      console.error("Error uploading file:", err);
-      res.status(500).json({ error: err });
-    } else {
-      console.log("File uploaded successfully:", req.file.filename);
-      // Send back the URL of the uploaded file
-      res.status(200).json({
-        imageUrl: `/uploads/${req.file.filename}`
-      });
-    }
+    if (err) return res.status(500).json({ error: err });
+    res.status(200).json({ imageUrl: `/uploads/${req.file.filename}` });
   });
 });
 
-// UPDATED: Endpoint for saving the message data
-app.post('/message', (req, res) => {
-  // Now accepts an optional imageUrl
+app.post('/message', async (req, res) => {
   const { phoneId, from, body, imageUrl } = req.body;
+  if (!phoneId || !from) return res.status(400).send('Missing required data');
 
-  if (!phoneId || !from) {
-    return res.status(400).send('Missing required data');
+  const sql = `INSERT INTO messages (phoneId, sender, body, imageUrl) VALUES ($1, $2, $3, $4) RETURNING *`;
+  try {
+    const result = await pool.query(sql, [phoneId, from, body || '', imageUrl || null]);
+    const newMessage = { ...result.rows[0], from: result.rows[0].sender };
+    io.emit('new_message', newMessage);
+    res.status(200).send('Message received and saved');
+  } catch (err) {
+    console.error("Error saving message:", err);
+    res.status(500).send('Error saving message');
   }
+});
 
-  const sql = `INSERT INTO messages (phoneId, sender, body, imageUrl) VALUES (?, ?, ?, ?)`;
-  db.run(sql, [phoneId, from, body || '', imageUrl || null], function(err) {
-      if (err) {
-          console.error("Error saving message to database:", err.message);
-          return res.status(500).send('Error saving message');
+// NEW: Endpoint for Android app to register its token
+app.post('/register-phone', async (req, res) => {
+  const { phoneId, token } = req.body;
+  if (!phoneId || !token) return res.status(400).send('Missing data');
+
+  // Use an "UPSERT" query to insert a new device or update the token if it already exists
+  const sql = `
+    INSERT INTO devices (phoneId, token) VALUES ($1, $2)
+    ON CONFLICT (phoneId) DO UPDATE SET token = $2;
+  `;
+  try {
+    await pool.query(sql, [phoneId, token]);
+    console.log(`Registered or updated token for ${phoneId}`);
+    res.status(200).send('Token registered');
+  } catch (err) {
+    console.error("Error registering token:", err);
+    res.status(500).send('Error registering token');
+  }
+});
+
+// NEW: Endpoint for the web dashboard to send an SMS
+app.post('/send-message', async (req, res) => {
+  const { phoneId, recipientNumber, messageBody } = req.body;
+  if (!phoneId || !recipientNumber || !messageBody) return res.status(400).send('Missing data');
+
+  try {
+    // 1. Find the token for the requested phoneId
+    const result = await pool.query('SELECT token FROM devices WHERE phoneId = $1', [phoneId]);
+    if (result.rows.length === 0) {
+      return res.status(404).send('Phone not found or not registered');
+    }
+    const token = result.rows[0].token;
+
+    // 2. Create the command payload to send to the phone
+    const payload = {
+      data: {
+        recipientNumber: recipientNumber,
+        messageBody: messageBody,
+        phoneId: phoneId
       }
-      
-      console.log(`Saved message from ${phoneId}`);
-      
-      const newMessage = {
-          phoneId,
-          from,
-          body: body || '',
-          imageUrl: imageUrl || null,
-          timestamp: new Date().toISOString()
-      };
-      io.emit('new_message', newMessage);
+    };
 
-      res.status(200).send('Message received and saved');
-  });
+    // 3. Use Firebase to send the command to the specific device
+    await admin.messaging().sendToDevice(token, payload);
+    console.log(`Sent 'send SMS' command to ${phoneId}`);
+    res.status(200).send('Send command issued');
+  } catch (err) {
+    console.error("Error sending FCM message:", err);
+    res.status(500).send('Error sending command');
+  }
 });
 
 
-// UPDATED: Fetch all messages for new web clients
-io.on('connection', (socket) => {
+// --- Socket.IO Connection ---
+io.on('connection', async (socket) => {
   console.log('A web client connected.');
   const sql = `SELECT phoneId, sender AS "from", body, imageUrl, timestamp FROM messages ORDER BY timestamp ASC`;
-  db.all(sql, [], (err, rows) => {
-      if (err) {
-          console.error("Error fetching messages:", err.message);
-          return;
-      }
-      const messagesByPhone = {};
-      rows.forEach(msg => {
-          if (!messagesByPhone[msg.phoneId]) {
-              messagesByPhone[msg.phoneId] = [];
-          }
-          messagesByPhone[msg.phoneId].push(msg);
-      });
-      socket.emit('all_messages', messagesByPhone);
-  });
+  try {
+    const result = await pool.query(sql);
+    const messagesByPhone = {};
+    result.rows.forEach(msg => {
+      if (!messagesByPhone[msg.phoneId]) messagesByPhone[msg.phoneId] = [];
+      messagesByPhone[msg.phoneId].push(msg);
+    });
+    socket.emit('all_messages', messagesByPhone);
+  } catch (err) {
+    console.error("Error fetching messages:", err);
+  }
 });
 
 const PORT = process.env.PORT || 3000;
