@@ -1,45 +1,85 @@
-// Final script.js
+// script.js - Final version with sending capabilities
 const SERVER_URL = "https://sms-dashboard-1igl.onrender.com"; // Make sure this is your correct URL
 const socket = io(SERVER_URL);
 
-// Get the HTML lists using their correct IDs
+// --- Get elements for displaying messages ---
 const attMessages = document.getElementById('att-messages');
 const verizonMessages = document.getElementById('verizon-messages');
 
-// This function creates and adds a message item to the correct list
+// --- Get elements for sending messages ---
+const attRecipient = document.getElementById('att-recipient');
+const attMessage = document.getElementById('att-message');
+const attSendBtn = document.getElementById('att-send-btn');
+
+const verizonRecipient = document.getElementById('verizon-recipient');
+const verizonMessage = document.getElementById('verizon-message');
+const verizonSendBtn = document.getElementById('verizon-send-btn');
+
+
+// --- Function to send a message ---
+async function sendMessage(phoneId, recipientInput, messageInput) {
+    const recipientNumber = recipientInput.value.trim();
+    const messageBody = messageInput.value.trim();
+
+    if (!recipientNumber || !messageBody) {
+        alert("Please enter a recipient and a message.");
+        return;
+    }
+
+    // Send the data to our server's /send-message endpoint
+    await fetch(`${SERVER_URL}/send-message`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            phoneId: phoneId,
+            recipientNumber: recipientNumber,
+            messageBody: messageBody
+        }),
+    });
+
+    // Clear the input fields after sending
+    recipientInput.value = '';
+    messageInput.value = '';
+    alert(`Send command issued from ${phoneId} phone!`);
+}
+
+// --- Add click listeners to the send buttons ---
+attSendBtn.addEventListener('click', () => {
+    sendMessage('AT&T', attRecipient, attMessage);
+});
+
+verizonSendBtn.addEventListener('click', () => {
+    sendMessage('Verizon', verizonRecipient, verizonMessage);
+});
+
+
+// --- Functions for displaying received messages (remain the same) ---
 function addMessageToList(phoneId, message) {
-    // Decide which list to add the message to based on the phoneId
     const list = phoneId === 'AT&T' ? attMessages : verizonMessages;
-    
-    if (!list) return; // Exit if the list element isn't found
+    if (!list) return;
 
     const item = document.createElement('li');
     item.className = 'message-item';
-    
     const time = new Date(message.timestamp).toLocaleTimeString('en-US');
 
-    // Create the basic HTML for the message
     let messageHTML = `
         <div class="from">From: ${message.from}</div>
         <div class="body">${message.body || ''}</div>
         <div class="time">${time}</div>
     `;
-
-    // Check if there is an image URL and add the image tag
     if (message.imageUrl) {
         messageHTML += `<img src="${SERVER_URL}${message.imageUrl}" class="mms-image" alt="MMS Image">`;
     }
-
     item.innerHTML = messageHTML;
     list.prepend(item);
 }
 
-// When first connecting, load all historical messages
 socket.on('all_messages', (messagesByPhone) => {
-    if(attMessages) attMessages.innerHTML = '';
-    if(verizonMessages) verizonMessages.innerHTML = '';
+    if (attMessages) attMessages.innerHTML = '';
+    if (verizonMessages) verizonMessages.innerHTML = '';
     
-    // Use bracket notation ['AT&T'] which is safer for keys with special characters
     if (messagesByPhone['AT&T']) {
         messagesByPhone['AT&T'].forEach(msg => addMessageToList('AT&T', msg));
     }
@@ -48,7 +88,6 @@ socket.on('all_messages', (messagesByPhone) => {
     }
 });
 
-// When a new message arrives in real-time
 socket.on('new_message', (message) => {
     addMessageToList(message.phoneId, message);
 });
