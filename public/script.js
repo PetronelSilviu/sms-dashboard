@@ -16,7 +16,13 @@ function addMessageToList(phoneId, message) {
     const item = document.createElement('li');
     item.className = 'message-item';
     
-    const time = new Date(message.timestamp).toLocaleTimeString('en-US');
+    const time = new Date(message.timestamp).toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    fractionalSecondDigits: 3,
+    hour12: false
+});
 
     // Create the basic HTML for the message
     let messageHTML = `
