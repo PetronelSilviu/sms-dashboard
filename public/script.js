@@ -1,11 +1,16 @@
-// script.js - Final Dynamic "Master-Detail" Version
-const SERVER_URL = "https://sms-dashboard-1igl.onrender.com";
+// script.js - Final version with sending capabilities
+const SERVER_URL = "https://sms-dashboard-1igl.onrender.com"; // Make sure this is your correct URL
 const socket = io(SERVER_URL);
 
-// Get the main UI elements
+// --- Get elements for displaying messages ---
 const phoneSelector = document.getElementById('phone-selector');
 const contentArea = document.getElementById('content-area');
 const messageList = document.getElementById('message-list');
+
+// --- Get elements for sending messages ---
+const recipientInput = document.getElementById('recipient-input');
+const messageInput = document.getElementById('message-input');
+const sendButton = document.getElementById('send-button');
 
 // This object will hold all messages, sorted by phone number
 let allMessages = {};
@@ -18,6 +23,9 @@ async function initializePhoneSelector() {
         const response = await fetch(`${SERVER_URL}/api/phones`);
         const phoneNumbers = await response.json();
 
+        // Save the currently selected value
+        const currentSelection = phoneSelector.value;
+        
         phoneSelector.innerHTML = '<option value="">-- Select a Phone --</option>'; // Clear "Loading..."
 
         phoneNumbers.forEach(number => {
@@ -26,6 +34,12 @@ async function initializePhoneSelector() {
             option.textContent = number;
             phoneSelector.appendChild(option);
         });
+        
+        // Restore the selection if it still exists
+        if (phoneNumbers.includes(currentSelection)) {
+            phoneSelector.value = currentSelection;
+        }
+
     } catch (error) {
         phoneSelector.innerHTML = '<option>Error loading phones</option>';
         console.error("Failed to fetch phone numbers:", error);
@@ -63,7 +77,6 @@ function addMessageToUI(message) {
     `;
 
     if (message.imageUrl) {
-        // Note: For Cloudinary or S3, the URL will be absolute and you won't need SERVER_URL
         const imageUrl = message.imageUrl.startsWith('http') ? message.imageUrl : `${SERVER_URL}${message.imageUrl}`;
         messageHTML += `<img src="${imageUrl}" class="mms-image" alt="MMS Image">`;
     }
@@ -73,29 +86,70 @@ function addMessageToUI(message) {
 }
 
 
+// --- Function to send a message ---
+async function sendMessage() {
+    const selectedPhone = phoneSelector.value;
+    const recipientNumber = recipientInput.value.trim();
+    const messageBody = messageInput.value.trim();
+
+    if (!selectedPhone) {
+        alert("Please select a phone to send from.");
+        return;
+    }
+    if (!recipientNumber || !messageBody) {
+        alert("Please enter a recipient and a message.");
+        return;
+    }
+
+    sendButton.disabled = true;
+    sendButton.textContent = 'Sending...';
+
+    try {
+        await fetch(`${SERVER_URL}/send-message`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                phoneId: selectedPhone,
+                recipientNumber: recipientNumber,
+                messageBody: messageBody
+            }),
+        });
+        
+        recipientInput.value = '';
+        messageInput.value = '';
+        alert(`Send command issued from ${selectedPhone}!`);
+    } catch (error) {
+        alert("Failed to send message. Please check the server logs.");
+        console.error("Send message error:", error);
+    } finally {
+        sendButton.disabled = false;
+        sendButton.textContent = 'Send Message';
+    }
+}
+
+
 // --- Event Handlers ---
 
-// When the user selects a different phone from the dropdown
 phoneSelector.addEventListener('change', () => {
     const selectedPhone = phoneSelector.value;
     displayMessagesForPhone(selectedPhone);
 });
 
-// When the page first connects, get all historical data
+sendButton.addEventListener('click', sendMessage);
+
 socket.on('all_messages', (messagesByPhone) => {
     allMessages = messagesByPhone;
-    // Now that we have the data, populate the dropdown
     initializePhoneSelector();
 });
 
-// When a new message arrives in real-time
 socket.on('new_message', (message) => {
     const { phoneId } = message;
-    
-    // Add the new message to our stored data
     if (!allMessages[phoneId]) {
         allMessages[phoneId] = [];
-        initializePhoneSelector(); // A new phone appeared, so refresh the dropdown
+        // A new phone appeared, so refresh the dropdown
+        initializePhoneSelector();
     }
     allMessages[phoneId].push(message);
 
@@ -103,10 +157,12 @@ socket.on('new_message', (message) => {
     if (phoneSelector.value === phoneId) {
         displayMessagesForPhone(phoneId);
     } else {
-        // Optional: Add a visual indicator that a new message has arrived for another number
+        // Add a visual indicator that a new message has arrived for another number
         const option = phoneSelector.querySelector(`option[value="${phoneId}"]`);
         if (option && !option.textContent.includes('•')) {
             option.textContent += ' •';
         }
     }
 });
+
+console.log("Dashboard script loaded. Connecting to server...");
