@@ -1,4 +1,3 @@
-// server.js - Final receive-only version
 const express = require('express');
 const http = require('http');
 const { Server } = require("socket.io");
@@ -6,6 +5,7 @@ const { Pool } = require('pg');
 const multer = require('multer');
 const cors = require('cors');
 const path = require('path');
+const auth = require('basic-auth');
 
 const app = express();
 const server = http.createServer(app);
@@ -13,10 +13,27 @@ const io = new Server(server, {
   cors: { origin: "*", methods: ["GET", "POST"] }
 });
 
+// --- Authentication Middleware ---
+const authMiddleware = (req, res, next) => {
+  const user = auth(req);
+  if (!user || !user.name || !user.pass || 
+      user.name !== process.env.ADMIN_USERNAME || 
+      user.pass !== process.env.ADMIN_PASSWORD) {
+    res.setHeader('WWW-Authenticate', 'Basic realm="example"');
+    return res.status(401).send('Authentication required.');
+  }
+  return next();
+};
+
+// --- Middleware Setup ---
 app.use(cors());
 app.use(express.json());
+
+// --- Apply Authentication to all routes below this line ---
+app.use(authMiddleware);
 app.use(express.static('public'));
 
+// --- Database Setup ---
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false }
@@ -32,8 +49,11 @@ const createTableQuery = `
     timestamp TIMESTAMPTZ DEFAULT NOW()
   );
 `;
-pool.query(createTableQuery);
+pool.query(createTableQuery)
+  .then(() => console.log("Table 'messages' is ready."))
+  .catch(err => console.error("Error creating table:", err));
 
+// --- File Upload Configuration ---
 const storage = multer.diskStorage({
   destination: './public/uploads/',
   filename: (req, file, cb) => {
@@ -42,6 +62,21 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage: storage }).single('mmsImage');
 
+// --- API Endpoints ---
+
+// NEW: Endpoint to get a list of all unique phone numbers
+app.get('/api/phones', async (req, res) => {
+    try {
+        const result = await pool.query('SELECT DISTINCT phoneId FROM messages ORDER BY phoneId ASC');
+        const phoneIds = result.rows.map(row => row.phoneid);
+        res.json(phoneIds);
+    } catch (err) {
+        console.error("Error fetching phone numbers:", err);
+        res.status(500).send('Server error');
+    }
+});
+
+// Endpoint for uploading an image
 app.post('/upload', (req, res) => {
   upload(req, res, (err) => {
     if (err) return res.status(500).json({ error: err });
@@ -49,6 +84,7 @@ app.post('/upload', (req, res) => {
   });
 });
 
+// Endpoint for receiving message data
 app.post('/message', async (req, res) => {
   const { phoneId, from, body, imageUrl } = req.body;
   if (!phoneId || !from) return res.status(400).send('Missing required data');
@@ -72,6 +108,7 @@ app.post('/message', async (req, res) => {
   }
 });
 
+// --- Socket.IO Connection ---
 io.on('connection', async (socket) => {
   console.log('A web client connected.');
   const sql = `SELECT phoneId, sender AS "from", body, imageUrl, timestamp FROM messages ORDER BY timestamp ASC`;
