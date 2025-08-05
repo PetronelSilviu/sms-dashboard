@@ -3,26 +3,39 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dynamic SMS & MMS Dashboard</title>
+    <title>SMS & MMS Dashboard</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f4f7f6; color: #333; margin: 0; }
-        header { background-color: #fff; padding: 15px 30px; border-bottom: 1px solid #ddd; text-align: center; }
-        header h1 { margin: 0; font-size: 24px; color: #007aff; }
-        main { display: flex; justify-content: flex-start; align-items: flex-start; padding: 20px; flex-wrap: wrap; gap: 20px;}
-        .phone-column { background-color: #fff; border: 1px solid #ddd; border-radius: 8px; width: 400px; max-width: 100%; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-        .phone-column h2 { background-color: #007aff; color: white; padding: 12px; margin: 0; border-top-left-radius: 8px; border-top-right-radius: 8px; font-size: 18px; text-align: center; }
-        .message-list { list-style-type: none; padding: 15px; height: 70vh; overflow-y: auto; }
-        .message-item { background-color: #e9e9eb; padding: 10px; border-radius: 8px; margin-bottom: 10px; }
-        .message-item .from { font-weight: bold; color: #333; }
-        .message-item .body { margin-top: 5px; color: #555; white-space: pre-wrap; word-break: break-word; }
+        .container { max-width: 900px; margin: auto; padding: 20px; }
+        header { text-align: center; border-bottom: 1px solid #ddd; padding-bottom: 20px; margin-bottom: 20px; }
+        select { padding: 8px; font-size: 16px; width: 100%; margin-bottom: 20px; }
+        .content-area { display: none; } /* Hidden by default until a phone is selected */
+        .message-list { list-style-type: none; padding: 0; height: 60vh; overflow-y: auto; border: 1px solid #ddd; border-radius: 8px; }
+        .message-item { background-color: #e9e9eb; padding: 10px; border-radius: 8px; margin: 10px; }
+        .message-item .from { font-weight: bold; }
+        .message-item .body { margin-top: 5px; white-space: pre-wrap; word-break: break-word; }
         .message-item .time { font-size: 0.75em; color: #888; text-align: right; margin-top: 5px;}
         .mms-image { max-width: 100%; border-radius: 5px; margin-top: 10px; }
     </style>
 </head>
 <body>
-    <header><h1>Live SMS & MMS Dashboard</h1></header>
-    
-    <main id="dashboard-main"></main>
+    <div class="container">
+        <header>
+            <h1>Messaging Dashboard</h1>
+        </header>
+        
+        <nav>
+            <label for="phone-selector">Select a Phone:</label>
+            <select id="phone-selector">
+                <option>Loading phones...</option>
+            </select>
+        </nav>
+
+        <main id="content-area" class="content-area">
+            <ul class="message-list" id="message-list">
+                </ul>
+            </main>
+    </div>
     
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <script src="script.js"></script>
