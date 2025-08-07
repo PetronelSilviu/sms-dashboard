@@ -10,20 +10,34 @@ let allMessages = {};
 async function initializePhoneSelector() {
     try {
         const response = await fetch(`${SERVER_URL}/api/phones`);
-        const phoneNumbers = await response.json();
+        const groupedPhones = await response.json(); // Expects data like { "US": [...], "RO": [...] }
+        
         const currentSelection = phoneSelector.value;
         phoneSelector.innerHTML = '<option value="">-- Select a Phone --</option>';
-        phoneNumbers.forEach(number => {
-            const option = document.createElement('option');
-            option.value = number;
-            option.textContent = number;
-            phoneSelector.appendChild(option);
-        });
+
+        // Create optgroups for each country
+        for (const country in groupedPhones) {
+            const optgroup = document.createElement('optgroup');
+            optgroup.label = country;
+            
+            groupedPhones[country].forEach(device => {
+                const option = document.createElement('option');
+                option.value = device.phoneNumber;
+                // This line creates the text you want, e.g., "Digi Ro - +40756780187"
+                option.textContent = `${device.carrier} - ${device.phoneNumber}`;
+                optgroup.appendChild(option);
+            });
+            phoneSelector.appendChild(optgroup);
+        }
+        
+        // Restore the previous selection if it still exists
         if (currentSelection) {
             phoneSelector.value = currentSelection;
         }
+
     } catch (error) {
         phoneSelector.innerHTML = '<option>Error loading phones</option>';
+        console.error("Failed to fetch phone data:", error);
     }
 }
 
@@ -72,7 +86,7 @@ socket.on('new_message', (message) => {
     const { phoneId } = message;
     if (!allMessages[phoneId]) {
         allMessages[phoneId] = [];
-        initializePhoneSelector();
+        initializePhoneSelector(); // A new phone appeared, so refresh the dropdown
     }
     allMessages[phoneId].push(message);
     if (phoneSelector.value === phoneId) {
@@ -80,7 +94,7 @@ socket.on('new_message', (message) => {
     } else {
         const option = phoneSelector.querySelector(`option[value="${phoneId}"]`);
         if (option && !option.textContent.includes('•')) {
-            option.textContent += ' •';
+            option.textContent += ' •'; // Add a dot for new messages on unseen numbers
         }
     }
 });
