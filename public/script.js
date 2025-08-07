@@ -11,6 +11,8 @@ async function initializePhoneSelector() {
     try {
         const response = await fetch(`${SERVER_URL}/api/phones`);
         const groupedPhones = await response.json(); // Expects data like { "US": [...], "RO": [...] }
+       
+        console.log('Data from server:', groupedPhones); 
         
         const currentSelection = phoneSelector.value;
         phoneSelector.innerHTML = '<option value="">-- Select a Phone --</option>';
