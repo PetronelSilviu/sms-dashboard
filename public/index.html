@@ -3,32 +3,46 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dynamic SMS & MMS Dashboard</title>
+    <title>SMS & MMS Dashboard</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f4f7f6; color: #333; margin: 0; }
         .container { max-width: 900px; margin: auto; padding: 20px; }
         header { text-align: center; border-bottom: 1px solid #ddd; padding-bottom: 20px; margin-bottom: 20px; }
         select { padding: 8px; font-size: 16px; width: 100%; margin-bottom: 20px; }
-        .content-area { display: none; }
-        .message-list { list-style-type: none; padding: 0; height: 60vh; overflow-y: auto; border: 1px solid #ddd; border-radius: 8px; }
+        .content-area { display: none; } /* Hidden by default */
+        .message-list { list-style-type: none; padding: 0; height: 50vh; overflow-y: auto; border: 1px solid #ddd; border-radius: 8px; margin-bottom: 20px; }
         .message-item { background-color: #e9e9eb; padding: 10px; border-radius: 8px; margin: 10px; }
         .message-item .from { font-weight: bold; }
         .message-item .body { margin-top: 5px; white-space: pre-wrap; word-break: break-word; }
         .message-item .time { font-size: 0.75em; color: #888; text-align: right; margin-top: 5px;}
         .mms-image { max-width: 100%; border-radius: 5px; margin-top: 10px; }
+        /* Styles for the send form */
+        .send-form { padding: 15px; border: 1px solid #ddd; border-radius: 8px; background-color: #fff; }
+        .send-form input, .send-form textarea { width: calc(100% - 22px); padding: 10px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
+        .send-form button { width: 100%; padding: 10px; background-color: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
+        .send-form button:disabled { background-color: #999; }
     </style>
 </head>
 <body>
     <div class="container">
-        <header><h1>Live SMS & MMS Dashboard</h1></header>
+        <header><h1>Messaging Dashboard</h1></header>
+        
         <nav>
             <label for="phone-selector">Select a Phone:</label>
             <select id="phone-selector"><option>Loading phones...</option></select>
         </nav>
+
         <main id="content-area" class="content-area">
             <ul class="message-list" id="message-list"></ul>
+            
+            <div class="send-form">
+                <input type="text" id="recipient-input" placeholder="Recipient's phone number (e.g., +1...)" required>
+                <textarea id="message-input" rows="4" placeholder="Type a message to send..."></textarea>
+                <button id="send-button">Send Message</button>
+            </div>
         </main>
     </div>
+    
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <script src="script.js"></script>
 </body>
