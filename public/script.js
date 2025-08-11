@@ -18,12 +18,13 @@ async function initializePhoneSelector() {
         // Creates a new "optgroup" for each country
         for (const country in groupedPhones) {
             const optgroup = document.createElement('optgroup');
-            optgroup.label = country; // e.g., "US" or "RO"
+            optgroup.label = country;
             
             groupedPhones[country].forEach(device => {
                 const option = document.createElement('option');
                 option.value = device.phoneNumber;
-                option.textContent = `${device.carrier} - ${device.phoneNumber}`;
+                // This line is corrected to only show the phone number
+                option.textContent = device.phoneNumber;
                 optgroup.appendChild(option);
             });
             phoneSelector.appendChild(optgroup);
