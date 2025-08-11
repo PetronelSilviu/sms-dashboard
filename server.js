@@ -29,12 +29,10 @@ const authMiddleware = (req, res, next) => {
 app.use(cors());
 app.use(express.json());
 
-// Unprotected Health Check Route for Render
 app.get('/health', (req, res) => {
   res.status(200).send('OK');
 });
 
-// Apply Authentication to all routes below this line
 app.use(authMiddleware);
 app.use(express.static('public'));
 
@@ -84,7 +82,6 @@ const upload = multer({ storage: storage }).single('mmsImage');
 
 // --- API Endpoints ---
 
-// Endpoint for Android app to register/update its details
 app.post('/api/register-device', async (req, res) => {
     const { phoneNumber, country, carrier } = req.body;
     if (!phoneNumber || !country || !carrier) {
@@ -104,20 +101,26 @@ app.post('/api/register-device', async (req, res) => {
     }
 });
 
-// Endpoint that returns devices grouped by country
 app.get('/api/phones', async (req, res) => {
     try {
-        const result = await pool.query('SELECT DISTINCT phone_id FROM messages ORDER BY phone_id ASC');
-        // This line ensures we send a simple array of strings, e.g., ["+1555...", "+1444..."]
-        const phoneIds = result.rows.map(row => row.phone_id);
-        res.json(phoneIds);
+        const result = await pool.query('SELECT phone_number, country, carrier FROM devices ORDER BY country, carrier');
+        
+        const groupedByCountry = result.rows.reduce((acc, device) => {
+            const country = device.country || 'Unknown';
+            if (!acc[country]) {
+                acc[country] = [];
+            }
+            acc[country].push({ phoneNumber: device.phone_number, carrier: device.carrier });
+            return acc;
+        }, {});
+        
+        res.json(groupedByCountry);
     } catch (err) {
-        console.error("Error fetching phone numbers:", err);
+        console.error("Error fetching phone data:", err);
         res.status(500).send('Server error');
     }
 });
 
-// Endpoint for uploading an image
 app.post('/upload', (req, res) => {
     upload(req, res, (err) => {
         if (err) return res.status(500).json({ error: err });
@@ -125,7 +128,6 @@ app.post('/upload', (req, res) => {
     });
 });
 
-// Endpoint for receiving message data
 app.post('/message', async (req, res) => {
   let { phoneId, from, body, imageUrl } = req.body;
   if (!from) {
@@ -156,7 +158,6 @@ app.post('/message', async (req, res) => {
 
 // --- Socket.IO Connection ---
 io.on('connection', async (socket) => {
-  console.log('A web client connected.');
   const sql = `SELECT phone_id AS "phoneId", sender AS "from", body, image_url AS "imageUrl", timestamp FROM messages ORDER BY timestamp ASC`;
   try {
     const result = await pool.query(sql);
