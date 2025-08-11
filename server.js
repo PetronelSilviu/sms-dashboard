@@ -111,7 +111,7 @@ app.post('/message', async (req, res) => {
 // --- Socket.IO Connection ---
 io.on('connection', async (socket) => {
   console.log('A web client connected.');
-  const sql = `SELECT phone_id AS "phoneId", sender AS "from", body, image_url AS "imageUrl", timestamp FROM messages ORDER BY timestamp ASC`;
+  const sql = `SELECT phoneid AS "phoneId", sender AS "from", body, image_url AS "imageUrl", timestamp FROM messages ORDER BY timestamp ASC`;
   try {
     const result = await pool.query(sql);
     const messagesByPhone = {};
