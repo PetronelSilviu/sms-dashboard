@@ -23,6 +23,9 @@ async function initializePhoneSelector() {
         const response = await fetch(`${SERVER_URL}/api/phones`);
         const phoneNumbers = await response.json();
 
+        // ADD THIS LINE FOR DEBUGGING
+        console.log('Data from server:', phoneNumbers); 
+
         // Save the currently selected value
         const currentSelection = phoneSelector.value;
         
