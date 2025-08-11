@@ -13,6 +13,23 @@ const io = new Server(server, {
   cors: { origin: "*", methods: ["GET", "POST"] }
 });
 
+// --- NEW: Prefix map to determine country from phone number ---
+const countryPrefixes = {
+    "+1": "United States",
+    "+44": "United Kingdom",
+    "+40": "Romania"
+    // You can add more prefixes here later, e.g., "+49": "Germany"
+};
+
+function getCountryFromNumber(phoneNumber) {
+    for (const prefix in countryPrefixes) {
+        if (phoneNumber.startsWith(prefix)) {
+            return countryPrefixes[prefix];
+        }
+    }
+    return "Unknown";
+}
+
 // --- Authentication Middleware ---
 const authMiddleware = (req, res, next) => {
   const user = auth(req);
@@ -55,16 +72,8 @@ const setupDatabase = async () => {
                 timestamp TIMESTAMPTZ DEFAULT NOW()
             );
         `);
-        await client.query(`
-            CREATE TABLE IF NOT EXISTS devices (
-                phone_number VARCHAR(50) PRIMARY KEY,
-                country VARCHAR(10),
-                carrier VARCHAR(100)
-            );
-        `);
-        console.log("Database tables are ready.");
     } catch (err) {
-        console.error("Error creating tables:", err);
+        console.error("Error creating table:", err);
     } finally {
         client.release();
     }
@@ -81,36 +90,20 @@ const storage = multer.diskStorage({
 const upload = multer({ storage: storage }).single('mmsImage');
 
 // --- API Endpoints ---
-
-app.post('/api/register-device', async (req, res) => {
-    const { phoneNumber, country, carrier } = req.body;
-    if (!phoneNumber || !country || !carrier) {
-        return res.status(400).json({ error: 'Missing device information' });
-    }
-    const sql = `
-        INSERT INTO devices (phone_number, country, carrier)
-        VALUES ($1, $2, $3)
-        ON CONFLICT (phone_number) DO UPDATE
-        SET country = $2, carrier = $3;
-    `;
-    try {
-        await pool.query(sql, [phoneNumber, country, carrier]);
-        res.status(200).json({ status: 'success' });
-    } catch (err) {
-        res.status(500).json({ error: 'Failed to register device' });
-    }
-});
-
 app.get('/api/phones', async (req, res) => {
     try {
-        const result = await pool.query('SELECT phone_number, country, carrier FROM devices ORDER BY country, carrier');
-        
-        const groupedByCountry = result.rows.reduce((acc, device) => {
-            const country = device.country || 'Unknown';
+        const result = await pool.query('SELECT DISTINCT phone_id FROM messages ORDER BY phone_id ASC');
+        const phoneNumbers = result.rows; // This is a list of objects, e.g., [{ phone_id: '+1...' }]
+
+        const groupedByCountry = phoneNumbers.reduce((acc, row) => {
+            const phoneNumber = row.phone_id;
+            const country = getCountryFromNumber(phoneNumber);
+            
             if (!acc[country]) {
                 acc[country] = [];
             }
-            acc[country].push({ phoneNumber: device.phone_number, carrier: device.carrier });
+            // The frontend expects phoneNumber and carrier. We'll use the number for both.
+            acc[country].push({ phoneNumber: phoneNumber, carrier: phoneNumber });
             return acc;
         }, {});
         
