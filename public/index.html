@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SMS & MMS Dashboard</title>
+    <title>Dynamic SMS & MMS Dashboard</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f4f7f6; color: #333; margin: 0; }
         .container { max-width: 900px; margin: auto; padding: 20px; }
         header { text-align: center; border-bottom: 1px solid #ddd; padding-bottom: 20px; margin-bottom: 20px; }
         select { padding: 8px; font-size: 16px; width: 100%; margin-bottom: 20px; }
-        .content-area { display: none; } /* Hidden by default */
-        .message-list { list-style-type: none; padding: 0; height: 70vh; /* Made the list taller */ overflow-y: auto; border: 1px solid #ddd; border-radius: 8px; }
+        .content-area { display: none; }
+        .message-list { list-style-type: none; padding: 0; height: 70vh; overflow-y: auto; border: 1px solid #ddd; border-radius: 8px; }
         .message-item { background-color: #e9e9eb; padding: 10px; border-radius: 8px; margin: 10px; }
         .message-item .from { font-weight: bold; }
         .message-item .body { margin-top: 5px; white-space: pre-wrap; word-break: break-word; }
@@ -30,7 +30,7 @@
         <main id="content-area" class="content-area">
             <ul class="message-list" id="message-list">
                 </ul>
-            </main>
+        </main>
     </div>
     
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
