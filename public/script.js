@@ -10,29 +10,25 @@ let allMessages = {};
 async function initializePhoneSelector() {
     try {
         const response = await fetch(`${SERVER_URL}/api/phones`);
-        const groupedPhones = await response.json(); // Expects data like { "US": [...], "RO": [...] }
-       
-        console.log('Data from server:', groupedPhones); 
+        const groupedPhones = await response.json();
         
         const currentSelection = phoneSelector.value;
         phoneSelector.innerHTML = '<option value="">-- Select a Phone --</option>';
 
-        // Create optgroups for each country
+        // Creates a new "optgroup" for each country
         for (const country in groupedPhones) {
             const optgroup = document.createElement('optgroup');
-            optgroup.label = country;
+            optgroup.label = country; // e.g., "US" or "RO"
             
             groupedPhones[country].forEach(device => {
                 const option = document.createElement('option');
                 option.value = device.phoneNumber;
-                // This line creates the text you want, e.g., "Digi Ro - +40756780187"
                 option.textContent = `${device.carrier} - ${device.phoneNumber}`;
                 optgroup.appendChild(option);
             });
             phoneSelector.appendChild(optgroup);
         }
         
-        // Restore the previous selection if it still exists
         if (currentSelection) {
             phoneSelector.value = currentSelection;
         }
@@ -96,7 +92,7 @@ socket.on('new_message', (message) => {
     } else {
         const option = phoneSelector.querySelector(`option[value="${phoneId}"]`);
         if (option && !option.textContent.includes('•')) {
-            option.textContent += ' •'; // Add a dot for new messages on unseen numbers
+            option.textContent += ' •';
         }
     }
 });
