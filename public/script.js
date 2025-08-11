@@ -10,20 +10,30 @@ let allMessages = {};
 async function initializePhoneSelector() {
     try {
         const response = await fetch(`${SERVER_URL}/api/phones`);
-        const phoneNumbers = await response.json();
+        const groupedPhones = await response.json();
+        
         const currentSelection = phoneSelector.value;
         phoneSelector.innerHTML = '<option value="">-- Select a Phone --</option>';
-        phoneNumbers.forEach(number => {
-            const option = document.createElement('option');
-            option.value = number;
-            option.textContent = number;
-            phoneSelector.appendChild(option);
-        });
+
+        for (const country in groupedPhones) {
+            const optgroup = document.createElement('optgroup');
+            optgroup.label = country;
+            
+            groupedPhones[country].forEach(device => {
+                const option = document.createElement('option');
+                option.value = device.phoneNumber;
+                option.textContent = device.phoneNumber;
+                optgroup.appendChild(option);
+            });
+            phoneSelector.appendChild(optgroup);
+        }
+        
         if (currentSelection) {
             phoneSelector.value = currentSelection;
         }
     } catch (error) {
         phoneSelector.innerHTML = '<option>Error loading phones</option>';
+        console.error("Failed to fetch phone data:", error);
     }
 }
 
