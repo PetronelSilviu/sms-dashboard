@@ -13,12 +13,12 @@ const io = new Server(server, {
   cors: { origin: "*", methods: ["GET", "POST"] }
 });
 
-// --- NEW: Prefix map to determine country from phone number ---
+// --- Prefix map to determine country from phone number ---
 const countryPrefixes = {
     "+1": "United States",
     "+44": "United Kingdom",
     "+40": "Romania"
-    // You can add more prefixes here later, e.g., "+49": "Germany"
+    // You can add more prefixes here later
 };
 
 function getCountryFromNumber(phoneNumber) {
@@ -30,7 +30,6 @@ function getCountryFromNumber(phoneNumber) {
     return "Unknown";
 }
 
-// --- Authentication Middleware ---
 const authMiddleware = (req, res, next) => {
   const user = auth(req);
   if (!user || !user.name || !user.pass || 
@@ -42,18 +41,12 @@ const authMiddleware = (req, res, next) => {
   return next();
 };
 
-// --- Middleware Setup ---
 app.use(cors());
 app.use(express.json());
-
-app.get('/health', (req, res) => {
-  res.status(200).send('OK');
-});
-
+app.get('/health', (req, res) => { res.status(200).send('OK'); });
 app.use(authMiddleware);
 app.use(express.static('public'));
 
-// --- Database Setup ---
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false }
@@ -80,7 +73,6 @@ const setupDatabase = async () => {
 };
 setupDatabase();
 
-// --- File Upload Configuration ---
 const storage = multer.diskStorage({
   destination: './public/uploads/',
   filename: (req, file, cb) => {
@@ -89,27 +81,23 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage: storage }).single('mmsImage');
 
-// --- API Endpoints ---
 app.get('/api/phones', async (req, res) => {
     try {
         const result = await pool.query('SELECT DISTINCT phone_id FROM messages ORDER BY phone_id ASC');
-        const phoneNumbers = result.rows; // This is a list of objects, e.g., [{ phone_id: '+1...' }]
+        const phoneNumbers = result.rows; 
 
         const groupedByCountry = phoneNumbers.reduce((acc, row) => {
             const phoneNumber = row.phone_id;
             const country = getCountryFromNumber(phoneNumber);
-            
             if (!acc[country]) {
                 acc[country] = [];
             }
-            // The frontend expects phoneNumber and carrier. We'll use the number for both.
             acc[country].push({ phoneNumber: phoneNumber, carrier: phoneNumber });
             return acc;
         }, {});
         
         res.json(groupedByCountry);
     } catch (err) {
-        console.error("Error fetching phone data:", err);
         res.status(500).send('Server error');
     }
 });
@@ -144,12 +132,10 @@ app.post('/message', async (req, res) => {
     io.emit('new_message', newMessage);
     res.status(200).send('Message saved');
   } catch (err) {
-    console.error("Error saving message:", err);
     res.status(500).send('Error saving message');
   }
 });
 
-// --- Socket.IO Connection ---
 io.on('connection', async (socket) => {
   const sql = `SELECT phone_id AS "phoneId", sender AS "from", body, image_url AS "imageUrl", timestamp FROM messages ORDER BY timestamp ASC`;
   try {
