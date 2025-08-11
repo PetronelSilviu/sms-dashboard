@@ -104,10 +104,11 @@ app.post('/api/register-device', async (req, res) => {
     }
 });
 
-// Endpoint that returns devices grouped by country for the dashboard
+// Endpoint that returns devices grouped by country
 app.get('/api/phones', async (req, res) => {
     try {
         const result = await pool.query('SELECT phone_number, country, carrier FROM devices ORDER BY country, carrier');
+        
         const groupedByCountry = result.rows.reduce((acc, device) => {
             const country = device.country || 'Unknown';
             if (!acc[country]) {
@@ -116,6 +117,7 @@ app.get('/api/phones', async (req, res) => {
             acc[country].push({ phoneNumber: device.phone_number, carrier: device.carrier });
             return acc;
         }, {});
+        
         res.json(groupedByCountry);
     } catch (err) {
         console.error("Error fetching phone data:", err);
@@ -162,15 +164,12 @@ app.post('/message', async (req, res) => {
 
 // --- Socket.IO Connection ---
 io.on('connection', async (socket) => {
-  console.log('A web client connected.');
   const sql = `SELECT phone_id AS "phoneId", sender AS "from", body, image_url AS "imageUrl", timestamp FROM messages ORDER BY timestamp ASC`;
   try {
     const result = await pool.query(sql);
     const messagesByPhone = {};
     result.rows.forEach(msg => {
-      if (!messagesByPhone[msg.phoneId]) {
-          messagesByPhone[msg.phoneId] = [];
-      }
+      if (!messagesByPhone[msg.phoneId]) messagesByPhone[msg.phoneId] = [];
       messagesByPhone[msg.phoneId].push(msg);
     });
     socket.emit('all_messages', messagesByPhone);
