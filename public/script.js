@@ -52,13 +52,18 @@ function displayMessagesForPhone(phoneId) {
 function addMessageToUI(message) {
     const item = document.createElement('li');
     item.className = 'message-item';
-    const time = new Date(message.timestamp).toLocaleTimeString('ro-RO', {
-        hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3, hour12: false
+
+    // This is the updated line
+    const dateTime = new Date(message.timestamp).toLocaleString('ro-RO', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3,
+        hour12: false
     });
+
     let messageHTML = `
         <div class="from">From: ${message.from}</div>
         <div class="body">${message.body || ''}</div>
-        <div class="time">${time}</div>
+        <div class="time">${dateTime}</div>
     `;
     if (message.imageUrl) {
         const imageUrl = message.imageUrl.startsWith('http') ? message.imageUrl : `${SERVER_URL}${message.imageUrl}`;
