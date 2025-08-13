@@ -10,20 +10,30 @@ let allMessages = {};
 async function initializePhoneSelector() {
     try {
         const response = await fetch(`${SERVER_URL}/api/phones`);
-        const phoneNumbers = await response.json();
+        const groupedPhones = await response.json();
+        
         const currentSelection = phoneSelector.value;
         phoneSelector.innerHTML = '<option value="">-- Select a Phone --</option>';
-        phoneNumbers.forEach(number => {
-            const option = document.createElement('option');
-            option.value = number;
-            option.textContent = number;
-            phoneSelector.appendChild(option);
-        });
+
+        for (const country in groupedPhones) {
+            const optgroup = document.createElement('optgroup');
+            optgroup.label = country;
+            
+            groupedPhones[country].forEach(device => {
+                const option = document.createElement('option');
+                option.value = device.phoneNumber;
+                option.textContent = `${device.carrier} - ${device.phoneNumber}`;
+                optgroup.appendChild(option);
+            });
+            phoneSelector.appendChild(optgroup);
+        }
+        
         if (currentSelection) {
             phoneSelector.value = currentSelection;
         }
     } catch (error) {
         phoneSelector.innerHTML = '<option>Error loading phones</option>';
+        console.error("Failed to fetch phone data:", error);
     }
 }
 
@@ -42,8 +52,11 @@ function displayMessagesForPhone(phoneId) {
 function addMessageToUI(message) {
     const item = document.createElement('li');
     item.className = 'message-item';
-    const time = new Date(message.timestamp).toLocaleTimeString('ro-RO', {
-        hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3, hour12: false
+
+    const dateTime = new Date(message.timestamp).toLocaleString('ro-RO', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3,
+        hour12: false
     });
 
     let displayBody = message.body || '';
@@ -63,7 +76,7 @@ function addMessageToUI(message) {
     let messageHTML = `
         <div class="from">From: ${message.from}</div>
         <div class="body">${displayBody}</div>
-        <div class="time">${time}</div>
+        <div class="time">${dateTime}</div>
     `;
     if (message.imageUrl) {
         const imageUrl = message.imageUrl.startsWith('http') ? message.imageUrl : `${SERVER_URL}${message.imageUrl}`;
