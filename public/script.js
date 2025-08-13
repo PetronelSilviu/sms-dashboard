@@ -22,8 +22,16 @@ async function initializePhoneSelector() {
             groupedPhones[country].forEach(device => {
                 const option = document.createElement('option');
                 option.value = device.phoneNumber;
-                // THIS IS THE CORRECTED LINE
-                option.textContent = device.phoneNumber;
+
+                // --- THIS IS THE CORRECTED LOGIC ---
+                // It checks if the carrier name is useful before displaying it.
+                if (device.carrier && device.carrier !== device.phoneNumber) {
+                    option.textContent = `${device.carrier} - ${device.phoneNumber}`;
+                } else {
+                    option.textContent = device.phoneNumber;
+                }
+                // --- END OF CORRECTION ---
+
                 optgroup.appendChild(option);
             });
             phoneSelector.appendChild(optgroup);
@@ -32,7 +40,6 @@ async function initializePhoneSelector() {
         if (currentSelection) {
             phoneSelector.value = currentSelection;
         }
-
     } catch (error) {
         phoneSelector.innerHTML = '<option>Error loading phones</option>';
         console.error("Failed to fetch phone data:", error);
@@ -54,13 +61,29 @@ function displayMessagesForPhone(phoneId) {
 function addMessageToUI(message) {
     const item = document.createElement('li');
     item.className = 'message-item';
-    const time = new Date(message.timestamp).toLocaleTimeString('ro-RO', {
-        hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3, hour12: false
+
+    const dateTime = new Date(message.timestamp).toLocaleString('ro-RO', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3,
+        hour12: false
     });
+
+    let displayBody = message.body || '';
+
+    // RBM JSON Parsing logic
+    try {
+        const rbmData = JSON.parse(displayBody);
+        if (rbmData && rbmData.response && rbmData.response.reply && rbmData.response.reply.displayText) {
+            displayBody = `[RBM]: ${rbmData.response.reply.displayText}`;
+        }
+    } catch (e) {
+        // Not a JSON message, do nothing.
+    }
+
     let messageHTML = `
         <div class="from">From: ${message.from}</div>
-        <div class="body">${message.body || ''}</div>
-        <div class="time">${time}</div>
+        <div class="body">${displayBody}</div>
+        <div class="time">${dateTime}</div>
     `;
     if (message.imageUrl) {
         const imageUrl = message.imageUrl.startsWith('http') ? message.imageUrl : `${SERVER_URL}${message.imageUrl}`;
@@ -84,7 +107,7 @@ socket.on('new_message', (message) => {
     const { phoneId } = message;
     if (!allMessages[phoneId]) {
         allMessages[phoneId] = [];
-        initializePhoneSelector(); 
+        initializePhoneSelector();
     }
     allMessages[phoneId].push(message);
     if (phoneSelector.value === phoneId) {
